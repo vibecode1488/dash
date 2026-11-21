@@ -1,0 +1,6 @@
+plugins { id 'com.android.application' }
+android {
+  namespace 'ua.dash'
+  compileSdk 34
+  defaultConfig { applicationId 'ua.dash.clock'; minSdk 21; targetSdk 34; versionCode 1; versionName '1.0' }
+}

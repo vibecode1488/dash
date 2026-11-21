@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="uk"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="theme-color" content="#000000"><title>Дашборд</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--ok:#5bd08a;--warn:#ff9f43;--gold:#f2c14e;--mut:#7c7a74;--tx:#eceae4;--ln:#232323}
+html,body{height:100%;background:#000;color:var(--tx);overflow:hidden;font-family:"Roboto","Segoe UI",sans-serif}
+#app{height:100%;display:flex;flex-direction:column;padding:5vw 6vw 3vw;transition:opacity .6s}
+body.night #app{opacity:.45}
+section{border-top:1px solid var(--ln);padding:1.6vh 0;display:flex;flex-direction:column;justify-content:center;min-height:0}
+#clock{border:0;flex:1.35}#power{flex:1.3}#wx{flex:1}#pay{flex:.75}
+#time{font-family:"sans-serif-light","Roboto",sans-serif;font-weight:200;font-size:30vw;line-height:1;
+ letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
+#dl{display:flex;justify-content:space-between;align-items:baseline;margin-top:1.2vh}
+#date{font-size:6vw;color:#c9c7c0}#date:first-letter{text-transform:uppercase}
+#sec{font-size:6vw;color:var(--mut);font-variant-numeric:tabular-nums}
+body.night #sec{visibility:hidden}
+#pst{font-size:11vw;font-weight:500;color:var(--ok);display:flex;align-items:center;gap:3vw}
+#pst:before{content:"";width:4.4vw;height:4.4vw;border-radius:50%;background:currentColor}
+#power.off #pst{color:var(--warn)}
+#psub{font-size:5vw;margin-top:.8vh}#plast{font-size:4.2vw;color:var(--mut);margin-top:.5vh}
+#tl{position:relative;height:2.4vw;border-radius:1.2vw;background:#1d3a29;overflow:hidden;margin-top:1.6vh}
+#tl i{position:absolute;top:0;bottom:0;background:var(--warn)}
+#tn{display:flex;justify-content:space-between;font-size:3.4vw;color:var(--mut);margin-top:.6vh}
+#wr1{display:flex;align-items:center;gap:4vw}
+#wico{font-size:15vw;line-height:1}
+#wt{font-family:"sans-serif-light","Roboto",sans-serif;font-weight:200;font-size:19vw;line-height:1}
+#wd{font-size:5vw;margin-top:.6vh}#wr{font-size:4.4vw;color:var(--mut);margin-top:.4vh}
+#pay .l{font-size:4.2vw;color:var(--mut)}
+#pd{font-family:"sans-serif-light","Roboto",sans-serif;font-weight:200;font-size:20vw;line-height:1;color:var(--gold)}
+#pu{font-size:5vw;color:#c9c7c0}
+#pay.today #pd{font-size:10vw;font-weight:500;color:var(--ok)}
+#gear{position:fixed;right:2vw;top:1vw;font-size:6vw;color:#4a4a4a;background:none;border:0;padding:2vw;z-index:3}
+#set{position:fixed;inset:0;background:#000;display:none;z-index:5;overflow:auto;padding:5vw;font-size:5vw}
+#set.show{display:block}
+#set label{display:block;margin:3vh 0 1vh;color:var(--mut);font-size:4.2vw}
+#set input,#set select{width:100%;font-size:5vw;padding:2vw;background:#161616;color:#fff;border:1px solid #333;border-radius:2vw}
+.row{display:flex;gap:3vw;margin-top:2vh}
+.b{font-size:4.6vw;padding:2.4vw 4vw;background:#24312b;color:#fff;border:0;border-radius:2vw}.b.r{background:#4a2222}
+#hist{font-size:4.2vw;color:#ccc;line-height:1.5}#hist div{border-bottom:1px solid #222;padding:1vw 0}
+#msg{color:var(--warn);font-size:4vw;margin-top:1vh}
+</style></head><body>
+<button id="gear" aria-label="Налаштування">⚙</button>
+<div id="app">
+ <section id="clock"><div id="time">--:--</div><div id="dl"><span id="date"></span><span id="sec"></span></div></section>
+ <section id="power"><div id="pst">Світло…</div><div id="psub"></div><div id="plast"></div>
+  <div id="tl"></div><div id="tn"><span>24 год тому</span><span>зараз</span></div></section>
+ <section id="wx"><div id="wr1"><div id="wico">…</div><div id="wt">--°</div></div>
+  <div id="wd">Завантаження…</div><div id="wr"></div></section>
+ <section id="pay"><div class="l">До виплати</div><div><span id="pd">--</span> <span id="pu"></span></div></section>
+</div>
+<div id="set">
+ <div class="row" style="margin-top:0"><button class="b" id="close">← Назад</button></div>
+ <label>Місто</label><input id="city" placeholder="Київ">
+ <div class="row"><button class="b" id="findCity">Знайти й зберегти</button></div><div id="msg"></div>
+ <label>Дні виплат через кому (5, 20)</label><input id="pdays" inputmode="numeric">
+ <label>Нічний режим</label>
+ <select id="nm"><option value="auto">Авто (23:00–07:00)</option><option value="on">Завжди</option><option value="off">Вимкнено</option></select>
+ <div class="row"><button class="b" id="save">Зберегти</button></div>
+ <label>Історія відключень (14 днів)</label><div id="hist"></div>
+ <div class="row"><button class="b r" id="clr">Очистити історію</button></div>
+</div>
+<script>
+(function(){
+"use strict";
+var LS=localStorage,$=function(i){return document.getElementById(i)};
+function load(k,d){try{var v=JSON.parse(LS.getItem(k));return v==null?d:v}catch(e){return d}}
+function save(k,v){try{LS.setItem(k,JSON.stringify(v))}catch(e){}}
+function p2(n){return n<10?"0"+n:""+n}
+function hm(t){var d=new Date(t);return p2(d.getHours())+":"+p2(d.getMinutes())}
+function dhm(t){var d=new Date(t);return p2(d.getDate())+"."+p2(d.getMonth()+1)+" "+hm(t)}
+function dur(ms){var m=Math.max(0,Math.floor(ms/6e4)),d=Math.floor(m/1440),h=Math.floor(m%1440/60);m%=60;
+ return d?d+" д "+h+" год":h?h+" год "+m+" хв":m+" хв"}
+var cfg=load("cfg",{city:"Київ",lat:50.4501,lon:30.5234,days:[5,20],night:"auto"});
+
+/* годинник */
+var lastMin=-1,lastDay=-1;
+function tick(){var n=new Date(),m=n.getMinutes();
+ $("sec").textContent=":"+p2(n.getSeconds());
+ if(m!==lastMin){lastMin=m;$("time").textContent=p2(n.getHours())+":"+p2(m);
+  var h=n.getHours();document.body.classList.toggle("night",cfg.night==="on"||(cfg.night==="auto"&&(h>=23||h<7)));updPower()}
+ if(n.getDate()!==lastDay){lastDay=n.getDate();
+  $("date").textContent=n.toLocaleDateString("uk-UA",{weekday:"long",day:"numeric",month:"long"});updPay()}}
+
+/* світло */
+var log=load("log",[]),state=load("pstate",null),bat={c:null,l:1},pend=null,pendT=0;
+function commit(c,t){if(state&&state.c===c)return;
+ if(!c)log.push({s:t,e:null});else if(log.length&&log[log.length-1].e===null)log[log.length-1].e=t;
+ if(log.length>200)log=log.slice(-200);state={c:c,t:t};save("log",log);save("pstate",state);updPower()}
+function onBat(){if(bat.c===null)return;
+ if(!state){state={c:bat.c,t:Date.now()};save("pstate",state);updPower();return}
+ if(bat.c===state.c){pend=null;updPower();return}
+ if(pend===bat.c)return;pend=bat.c;pendT=Date.now();
+ setTimeout(function(){if(pend!==null&&bat.c===pend)commit(pend,pendT);pend=null},4000)}
+window.nativeBat=function(c,l){bat.c=c;bat.l=l/100;onBat()};
+function updPower(){if(!state)return;var now=Date.now(),on=state.c;
+ $("power").className=on?"":"off";
+ $("pst").textContent=on?"Світло є":"Світла немає";
+ var w=on?"Є з ":"Немає з ",s=now-state.t>864e5?dhm(state.t):hm(state.t);
+ $("psub").textContent=w+s+" ("+dur(now-state.t)+")";
+ var ex="",last=null;
+ for(var i=log.length-1;i>=0;i--)if(log[i].e!==null){last=log[i];break}
+ if(!on&&bat.c!==null)ex="Батарея: "+Math.round(bat.l*100)+"%";
+ else if(on&&last)ex="Востаннє не було "+dur(last.e-last.s)+" ("+dhm(last.s)+")";
+ $("plast").textContent=ex;
+ var t0=now-864e5,h="";
+ log.forEach(function(r){var e=r.e===null?now:r.e;if(e<t0)return;var a=Math.max(r.s,t0);
+  h+='<i style="left:'+((a-t0)/864e5*100)+'%;width:'+Math.max((e-a)/864e5*100,.6)+'%"></i>'});
+ $("tl").innerHTML=h}
+if(!/app=1/.test(location.search)&&navigator.getBattery){
+ navigator.getBattery().then(function(b){var r=function(){bat.c=b.charging;bat.l=b.level;onBat()};
+  b.onchargingchange=b.onlevelchange=r;r()})}
+else if(!/app=1/.test(location.search))$("psub").textContent="Battery API недоступний";
+
+/* погода */
+var WC={0:["☀️","Ясно"],1:["🌤️","Переважно ясно"],2:["⛅","Мінлива хмарність"],3:["☁️","Хмарно"],45:["🌫️","Туман"],48:["🌫️","Паморозь"],
+51:["🌦️","Мряка"],53:["🌦️","Мряка"],55:["🌦️","Сильна мряка"],56:["🌧️","Крижана мряка"],57:["🌧️","Крижана мряка"],
+61:["🌧️","Невеликий дощ"],63:["🌧️","Дощ"],65:["🌧️","Сильний дощ"],66:["🌧️","Крижаний дощ"],67:["🌧️","Крижаний дощ"],
+71:["🌨️","Невеликий сніг"],73:["🌨️","Сніг"],75:["❄️","Сильний сніг"],77:["🌨️","Снігова крупа"],80:["🌦️","Короткочасний дощ"],
+81:["🌧️","Зливи"],82:["⛈️","Сильні зливи"],85:["🌨️","Снігопад"],86:["❄️","Сильний снігопад"],95:["⛈️","Гроза"],96:["⛈️","Гроза з градом"],99:["⛈️","Гроза з градом"]};
+function sg(n){n=Math.round(n);return(n>0?"+":"")+n+"°"}
+function showW(w,stale){if(!w)return;var c=WC[w.code]||["❔","—"];
+ $("wico").textContent=c[0];$("wt").textContent=sg(w.t);
+ $("wd").textContent=c[1]+", відчувається "+sg(w.f);
+ $("wr").textContent=w.city+" · "+sg(w.min)+" … "+sg(w.max)+(stale?" · дані від "+hm(w.ts):"")}
+function fetchW(){var x=new XMLHttpRequest();
+ x.open("GET","https://api.open-meteo.com/v1/forecast?latitude="+cfg.lat+"&longitude="+cfg.lon+
+ "&current=temperature_2m,apparent_temperature,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1");
+ x.timeout=15000;
+ x.onload=function(){try{var j=JSON.parse(x.responseText),c=j.current,d=j.daily,
+  w={city:cfg.city,t:c.temperature_2m,f:c.apparent_temperature,code:c.weather_code,min:d.temperature_2m_min[0],max:d.temperature_2m_max[0],ts:Date.now()};
+  save("wx",w);showW(w,false)}catch(e){fail()}};
+ x.onerror=x.ontimeout=fail;x.send()}
+function fail(){var w=load("wx",null);if(w)showW(w,true);else $("wd").textContent="Немає даних про погоду"}
+
+/* зарплата */
+function updPay(){var n=new Date(),t0=Date.UTC(n.getFullYear(),n.getMonth(),n.getDate()),best=null;
+ cfg.days.forEach(function(d){for(var k=0;k<=12;k++){var dt=new Date(n.getFullYear(),n.getMonth()+k,1),
+  last=new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate(),u=Date.UTC(dt.getFullYear(),dt.getMonth(),Math.min(d,last));
+  if(u>=t0){if(best===null||u<best)best=u;break}}});
+ var b=$("pay");
+ if(best===null){$("pd").textContent="—";$("pu").textContent="вкажіть дні";b.className="";return}
+ var diff=Math.round((best-t0)/864e5),bd=new Date(best);
+ if(!diff){b.className="today";$("pd").textContent="Сьогодні зарплата!";$("pu").textContent="🎉";return}
+ b.className="";$("pd").textContent=diff;
+ var a=diff%100,o=diff%10;
+ $("pu").textContent=((a>10&&a<15)?"днів":o===1?"день":(o>1&&o<5)?"дні":"днів")+" · "+bd.getUTCDate()+"."+p2(bd.getUTCMonth()+1)}
+
+/* wake lock (у браузері; в APK екран тримає сам застосунок) */
+var wl=null;function lock(){if(!navigator.wakeLock||document.visibilityState!=="visible")return;
+ navigator.wakeLock.request("screen").then(function(s){wl=s;s.onrelease=function(){wl=null}}).catch(function(){})}
+document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"){lock();tick();fetchW()}});
+document.addEventListener("click",function(){if(!wl)lock()});
+
+/* налаштування */
+function renderHist(){var h=$("hist");h.innerHTML="";var cut=Date.now()-14*864e5,
+ rows=log.filter(function(r){return r.s>cut}).reverse();
+ if(!rows.length){h.textContent="Відключень не було";return}
+ rows.forEach(function(r){var d=document.createElement("div");
+  d.textContent=dhm(r.s)+" → "+(r.e?dhm(r.e)+" ("+dur(r.e-r.s)+")":"триває ("+dur(Date.now()-r.s)+")");h.appendChild(d)})}
+$("gear").onclick=function(){$("city").value=cfg.city;$("pdays").value=cfg.days.join(", ");$("nm").value=cfg.night;
+ $("msg").textContent="";renderHist();$("set").className="show"};
+$("close").onclick=function(){$("set").className=""};
+$("save").onclick=function(){cfg.days=$("pdays").value.split(/[,\s;]+/).map(Number).filter(function(x){return x>=1&&x<=31});
+ cfg.night=$("nm").value;save("cfg",cfg);lastDay=-1;lastMin=-1;tick();$("set").className=""};
+$("findCity").onclick=function(){var q=$("city").value.trim();if(!q)return;$("msg").textContent="Пошук…";
+ var x=new XMLHttpRequest();
+ x.open("GET","https://geocoding-api.open-meteo.com/v1/search?count=1&language=uk&name="+encodeURIComponent(q));
+ x.onload=function(){try{var r=JSON.parse(x.responseText).results;
+  if(!r||!r.length){$("msg").textContent="Місто не знайдено";return}
+  cfg.city=r[0].name;cfg.lat=r[0].latitude;cfg.lon=r[0].longitude;save("cfg",cfg);
+  $("city").value=cfg.city;$("msg").textContent="Збережено: "+cfg.city;fetchW()}catch(e){$("msg").textContent="Помилка пошуку"}};
+ x.onerror=function(){$("msg").textContent="Немає інтернету"};x.send()};
+$("clr").onclick=function(){if(!confirm("Очистити історію?"))return;
+ log=log.length&&log[log.length-1].e===null?[log[log.length-1]]:[];save("log",log);renderHist();updPower()};
+
+tick();setInterval(tick,1000);
+var c0=load("wx",null);if(c0)showW(c0,true);
+fetchW();setInterval(fetchW,18e5);lock();
+})();
+</script></body></html>
